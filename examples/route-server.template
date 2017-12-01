@@ -1,0 +1,39 @@
+{{/* 
+	This is a template to that can be rendered by
+	Romana route publisher into bird.conf
+
+	It will export list of CIDRs (blocks) which
+	are served by the current host.
+*/}}
+{{ $id := index .Args "RouterID" -}}
+router id  {{ $id }};
+
+{{ $networks := index .Args "Topology" -}}
+{{ range $net, $topology := $networks -}}
+
+# Network {{ $net }}
+# Topology {{ $topology }}
+
+	{{ range $cidr, $hosts := $topology -}}
+		{{ range $host := $hosts }}
+
+protocol bgp {
+	# importing {{ $cidr }} from {{ $host }}
+	import all;
+
+	local as 65534;
+	neighbor {{ $host }} as 65534;
+}
+
+		{{ end }}
+	{{ end }}
+{{ end }}
+
+# export routes to the router
+protocol bgp {
+	export all;
+	local as 65534;
+
+	rr client;
+	neighbor 192.168.3.1 as 65534;
+}

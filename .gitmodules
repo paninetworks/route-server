@@ -1,0 +1,6 @@
+[submodule "vendor/github.com/romana/core"]
+	path = vendor/github.com/romana/core
+	url = https://github.com/romana/core
+[submodule "vendor/github.com/romana/rlog"]
+	path = vendor/github.com/romana/rlog
+	url = https://github.com/romana/rlog
