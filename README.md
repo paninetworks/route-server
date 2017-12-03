@@ -48,4 +48,4 @@ protocol bgp {
 }
 ```
 
-with `protocol bpg` section for every Romana node.
+with `protocol bgp` section for every Romana node.
