@@ -18,6 +18,7 @@ import (
 	"github.com/romana/core/routepublisher/bird"
 	"github.com/romana/core/routepublisher/publisher"
 
+	"github.com/osrg/gobgp/client"
 	log "github.com/romana/rlog"
 )
 
@@ -33,9 +34,19 @@ func main() {
 	flagRouterID := flag.String("id", "", "string to use as router id (hostname by default)")
 	flagTopologyUrl := flag.String("url", "http://localhost:9600/topology", "url to access romanad topology description")
 	flagPollPeriod := flag.Int("poll-period", 2, "sleep period between updates, in seconds")
+	flagGoBgpTarget := flag.String("gobgp-target", "", "grpc endpoint of gobgp server to export prefix routes")
 	flag.Parse()
 
 	fmt.Println(common.BuildInfo())
+
+	var gobgpClient *client.Client
+	if *flagGoBgpTarget != "" {
+		gobgpClient, err = client.NewWith(context.Background(), *flagGoBgpTarget, defaultGRPCOptions()...)
+	}
+	if err != nil {
+		log.Errorf("Failed to create a connection to gobgp server on %s, err=%s", *flagGoBgpTarget, err)
+		os.Exit(2)
+	}
 
 	config := make(map[string]string)
 	config["templateFileName"] = *flagTemplateFile
@@ -75,6 +86,10 @@ func main() {
 			args["Topology"] = topology
 
 			bird.Update(nil, args)
+
+			if *flagGoBgpTarget != "" {
+				syncGoBgp(gobgpClient, topology)
+			}
 
 			runTime := time.Now().Sub(startTime)
 			log.Tracef(4, "Time between route table flush and route table rebuild %s", runTime)
