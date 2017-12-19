@@ -18,7 +18,6 @@ import (
 	"github.com/romana/core/routepublisher/bird"
 	"github.com/romana/core/routepublisher/publisher"
 
-	"github.com/osrg/gobgp/client"
 	log "github.com/romana/rlog"
 )
 
@@ -38,15 +37,6 @@ func main() {
 	flag.Parse()
 
 	fmt.Println(common.BuildInfo())
-
-	var gobgpClient *client.Client
-	if *flagGoBgpTarget != "" {
-		gobgpClient, err = client.NewWith(context.Background(), *flagGoBgpTarget, defaultGRPCOptions()...)
-	}
-	if err != nil {
-		log.Errorf("Failed to create a connection to gobgp server on %s, err=%s", *flagGoBgpTarget, err)
-		os.Exit(2)
-	}
 
 	config := make(map[string]string)
 	config["templateFileName"] = *flagTemplateFile
@@ -77,8 +67,18 @@ func main() {
 		args["RouterID"] = *hostname
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	ticker := time.NewTicker(time.Duration(*flagPollPeriod) * time.Second)
-	topoChan := PollTopology(context.Background(), *flagTopologyUrl, ticker)
+	topoChan := PollTopology(ctx, *flagTopologyUrl, ticker)
+
+	syncChan := make(chan topologyMap)
+	if *flagGoBgpTarget != "" {
+		bgpTicker := time.NewTicker(time.Duration(*flagPollPeriod) * time.Second)
+		goBgpWorker(ctx, *flagGoBgpTarget, syncChan, bgpTicker)
+	}
+
 	for {
 		select {
 		case topology := <-topoChan:
@@ -88,7 +88,7 @@ func main() {
 			bird.Update(nil, args)
 
 			if *flagGoBgpTarget != "" {
-				syncGoBgp(gobgpClient, topology)
+				syncChan <- topology
 			}
 
 			runTime := time.Now().Sub(startTime)
