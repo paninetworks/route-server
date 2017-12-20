@@ -1,7 +1,4 @@
 # Route server
-[submodule "vendor/github.com/romana/core"]
-	path = vendor/github.com/romana/core
-	url = https://github.com/romana/core
 
 Route server is a configuration manager for the BIRD routing software
 that generates dynamic config and restarts bird when Romana topology changes.
