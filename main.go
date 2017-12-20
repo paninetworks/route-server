@@ -33,6 +33,7 @@ func main() {
 	flagRouterID := flag.String("id", "", "string to use as router id (hostname by default)")
 	flagTopologyUrl := flag.String("url", "http://localhost:9600/topology", "url to access romanad topology description")
 	flagPollPeriod := flag.Int("poll-period", 2, "sleep period between updates, in seconds")
+	flagGoBgpTarget := flag.String("gobgp-target", "", "grpc endpoint of gobgp server to export prefix routes")
 	flag.Parse()
 
 	fmt.Println(common.BuildInfo())
@@ -66,8 +67,18 @@ func main() {
 		args["RouterID"] = *hostname
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	ticker := time.NewTicker(time.Duration(*flagPollPeriod) * time.Second)
-	topoChan := PollTopology(context.Background(), *flagTopologyUrl, ticker)
+	topoChan := PollTopology(ctx, *flagTopologyUrl, ticker)
+
+	syncChan := make(chan topologyMap)
+	if *flagGoBgpTarget != "" {
+		bgpTicker := time.NewTicker(time.Duration(*flagPollPeriod) * time.Second)
+		goBgpWorker(ctx, *flagGoBgpTarget, syncChan, bgpTicker)
+	}
+
 	for {
 		select {
 		case topology := <-topoChan:
@@ -75,6 +86,10 @@ func main() {
 			args["Topology"] = topology
 
 			bird.Update(nil, args)
+
+			if *flagGoBgpTarget != "" {
+				syncChan <- topology
+			}
 
 			runTime := time.Now().Sub(startTime)
 			log.Tracef(4, "Time between route table flush and route table rebuild %s", runTime)
