@@ -56,18 +56,9 @@ func goBgpWorker(ctx context.Context, target string, in chan topologyMap, ticker
 			case <-ctx.Done():
 				return
 			case lastTopology = <-in:
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
 			case <-ticker.C:
 				if err != nil || goBgpClient == nil {
-					goBgpClient, err = client.NewWith(context.Background(),
+					goBgpClient, err = client.NewWith(ctx,
 						target,
 						defaultGRPCOptions()...)
 					if err != nil {
